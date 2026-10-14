@@ -13,6 +13,7 @@ import com.valentin.gestionfacil.ui.dashboard.DashboardViewModel
 import com.valentin.gestionfacil.ui.historial.HistorialViewModel
 import com.valentin.gestionfacil.ui.metas.MetasViewModel
 import com.valentin.gestionfacil.ui.presupuestos.PresupuestosViewModel
+import com.valentin.gestionfacil.ui.recurrentes.RecurrentesViewModel
 import com.valentin.gestionfacil.utils.PreferenciasHelper
 
 object AppViewModelProvider {
@@ -24,6 +25,7 @@ object AppViewModelProvider {
         initializer { PresupuestosViewModel(repo()) }
         initializer { AjustesViewModel(repo(), backup()) }
         initializer { MetasViewModel(repo()) }
+        initializer { RecurrentesViewModel(repo()) }
         initializer { TemaViewModel(prefs()) }
     }
 }

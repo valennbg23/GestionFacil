@@ -15,12 +15,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,6 +60,7 @@ private val paletaColores = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AjustesScreen(
+    onAbrirRecurrentes: () -> Unit = {},
     viewModel: AjustesViewModel = viewModel(factory = AppViewModelProvider.Factory),
     temaViewModel: TemaViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
@@ -173,6 +176,48 @@ fun AjustesScreen(
                         }
                     }
                 )
+            }
+
+            // ── MOVIMIENTOS RECURRENTES ───────────────────────────
+            item {
+                Text(
+                    "Movimientos recurrentes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colores.primario,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item {
+                Card(onClick = onAbrirRecurrentes, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Repeat, null,
+                            tint = colores.primario,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Gestionar recurrentes",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                "Pausa o elimina los gastos e ingresos que se repiten solos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight, null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             // ── COPIA DE SEGURIDAD ────────────────────────────────

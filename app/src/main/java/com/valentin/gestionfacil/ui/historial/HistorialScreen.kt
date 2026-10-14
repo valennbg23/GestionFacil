@@ -7,8 +7,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,7 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -47,6 +53,7 @@ fun HistorialScreen(
     val modoTema by temaViewModel.modo.collectAsStateWithLifecycle()
     val esOscuro = esModoOscuro(modoTema)
     val colores = coloresDe(Pantalla.HISTORIAL, forzarTemaOscuro = esOscuro)
+    val focusManager = LocalFocusManager.current
 
     val nombresMes = listOf(
         "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -65,6 +72,36 @@ fun HistorialScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+
+            // Buscador
+            OutlinedTextField(
+                value = state.filtros.busqueda,
+                onValueChange = viewModel::setBusqueda,
+                placeholder = { Text("Buscar (ej. café, Netflix, 12,50)", maxLines = 1) },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (state.filtros.buscando) {
+                        IconButton(onClick = {
+                            viewModel.setBusqueda("")
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Default.Close, "Borrar búsqueda")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = MaterialTheme.shapes.extraLarge,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colores.primario,
+                    focusedLeadingIconColor = colores.primario,
+                    cursorColor = colores.primario
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            )
 
             // Filtro de tipo
             Row(
@@ -94,27 +131,36 @@ fun HistorialScreen(
                 )
             }
 
-            // Filtro de mes
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = state.filtros.mes == null,
-                    onClick = { viewModel.setMes(null) },
-                    label = { Text("Todo el año") },
-                    colors = chipColores(colores.primario)
+            // Filtro de mes (se oculta mientras se busca: la búsqueda mira todos los meses)
+            if (state.filtros.buscando) {
+                Text(
+                    "Buscando en todos los meses",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                 )
-                (1..12).forEach { mes ->
+            } else {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     FilterChip(
-                        selected = state.filtros.mes == mes,
-                        onClick = { viewModel.setMes(mes) },
-                        label = { Text(nombresMes[mes - 1]) },
+                        selected = state.filtros.mes == null,
+                        onClick = { viewModel.setMes(null) },
+                        label = { Text("Todo el año") },
                         colors = chipColores(colores.primario)
                     )
+                    (1..12).forEach { mes ->
+                        FilterChip(
+                            selected = state.filtros.mes == mes,
+                            onClick = { viewModel.setMes(mes) },
+                            label = { Text(nombresMes[mes - 1]) },
+                            colors = chipColores(colores.primario)
+                        )
+                    }
                 }
             }
 
@@ -147,9 +193,15 @@ fun HistorialScreen(
 
             // Lista
             if (state.movimientos.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.fillMaxSize().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        "No hay movimientos con los filtros seleccionados",
+                        if (state.filtros.buscando)
+                            "No hay resultados para \"${state.filtros.busqueda.trim()}\""
+                        else
+                            "No hay movimientos con los filtros seleccionados",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -160,12 +212,56 @@ fun HistorialScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Resumen de la búsqueda: cuántos hay y cuánto suman
+                    if (state.filtros.buscando) {
+                        item {
+                            ResumenBusqueda(state.movimientos)
+                        }
+                    }
+
                     items(state.movimientos, key = { it.id }) { mov ->
                         MovimientoRow(mov, onClick = { onEditarMovimiento(mov.id) })
                     }
                     item { Spacer(Modifier.height(80.dp)) }
                 }
             }
+        }
+    }
+}
+
+/** Cuántos resultados ha encontrado la búsqueda y cuánto suman sus gastos e ingresos. */
+@Composable
+private fun ResumenBusqueda(movimientos: List<MovimientoConCategoria>) {
+    val totalGastos = movimientos.filter { it.tipo == TipoMovimiento.GASTO }.sumOf { it.importe }
+    val totalIngresos = movimientos.filter { it.tipo == TipoMovimiento.INGRESO }.sumOf { it.importe }
+    val n = movimientos.size
+
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            if (n == 1) "1 resultado" else "$n resultados",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        if (totalGastos > 0) {
+            Text(
+                "-" + formatEur(totalGastos),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = ColorGasto
+            )
+        }
+        if (totalIngresos > 0) {
+            Text(
+                "+" + formatEur(totalIngresos),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = ColorIngreso
+            )
         }
     }
 }

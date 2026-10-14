@@ -1,6 +1,7 @@
 package com.valentin.gestionfacil.data.db.converter
 
 import androidx.room.TypeConverter
+import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.data.entity.TipoMovimientoMeta
 import java.time.LocalDate
@@ -32,4 +33,11 @@ class Converters {
 
     @TypeConverter
     fun toTipoMovimientoMeta(value: String): TipoMovimientoMeta = TipoMovimientoMeta.valueOf(value)
+
+    // ── Frecuencia (movimientos recurrentes) ─────────────────────
+    @TypeConverter
+    fun fromFrecuencia(frecuencia: Frecuencia): String = frecuencia.name
+
+    @TypeConverter
+    fun toFrecuencia(value: String): Frecuencia = Frecuencia.valueOf(value)
 }

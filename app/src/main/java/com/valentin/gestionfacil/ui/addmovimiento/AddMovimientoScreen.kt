@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.valentin.gestionfacil.data.entity.Categoria
+import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.ui.common.AppViewModelProvider
 import com.valentin.gestionfacil.ui.theme.ColorGasto
@@ -29,6 +31,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -156,6 +159,19 @@ fun AddMovimientoScreen(
                 )
             }
 
+            // Repetir automáticamente (solo al crear, no al editar)
+            if (!state.esEdicion) {
+                item {
+                    TarjetaRepetir(
+                        repetir = state.repetir,
+                        frecuencia = state.frecuencia,
+                        fecha = state.fecha,
+                        onRepetirChange = viewModel::setRepetir,
+                        onFrecuenciaChange = viewModel::setFrecuencia
+                    )
+                }
+            }
+
             // Título categoría
             item {
                 Text(
@@ -280,6 +296,82 @@ private fun CategoriaItem(
                 fontWeight = if (seleccionada) FontWeight.SemiBold else FontWeight.Normal
             )
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TarjetaRepetir(
+    repetir: Boolean,
+    frecuencia: Frecuencia,
+    fecha: LocalDate,
+    onRepetirChange: (Boolean) -> Unit,
+    onFrecuenciaChange: (Frecuencia) -> Unit
+) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.Repeat,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(Modifier.weight(1f)) {
+                    Text("Repetir automáticamente", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Para el alquiler, la nómina, suscripciones...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = repetir, onCheckedChange = onRepetirChange)
+            }
+
+            if (repetir) {
+                Spacer(Modifier.height(12.dp))
+
+                val opciones = listOf(
+                    Frecuencia.SEMANAL to "Semanal",
+                    Frecuencia.MENSUAL to "Mensual",
+                    Frecuencia.ANUAL to "Anual"
+                )
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    opciones.forEachIndexed { indice, (valor, etiqueta) ->
+                        SegmentedButton(
+                            selected = frecuencia == valor,
+                            onClick = { onFrecuenciaChange(valor) },
+                            shape = SegmentedButtonDefaults.itemShape(indice, opciones.size)
+                        ) { Text(etiqueta) }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    textoRepeticion(frecuencia, fecha),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/** Explica con palabras cuándo se repetirá, según la fecha elegida. */
+private fun textoRepeticion(frecuencia: Frecuencia, fecha: LocalDate): String {
+    val es = Locale("es", "ES")
+    return when (frecuencia) {
+        Frecuencia.SEMANAL ->
+            "Se añadirá solo cada ${fecha.dayOfWeek.getDisplayName(TextStyle.FULL, es)}"
+        Frecuencia.MENSUAL ->
+            if (fecha.dayOfMonth > 28)
+                "Se añadirá solo el día ${fecha.dayOfMonth} de cada mes (o el último día si el mes es más corto)"
+            else
+                "Se añadirá solo el día ${fecha.dayOfMonth} de cada mes"
+        Frecuencia.ANUAL ->
+            "Se añadirá solo cada año el ${fecha.format(DateTimeFormatter.ofPattern("d 'de' MMMM", es))}"
     }
 }
 

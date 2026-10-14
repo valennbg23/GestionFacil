@@ -3,6 +3,7 @@ package com.valentin.gestionfacil.ui.addmovimiento
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.valentin.gestionfacil.data.entity.Categoria
+import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.data.repository.FinanzasRepository
@@ -20,6 +21,8 @@ data class AddMovimientoUiState(
     val categoriaId: Long? = null,
     val fecha: LocalDate = LocalDate.now(),
     val descripcion: String = "",
+    val repetir: Boolean = false,
+    val frecuencia: Frecuencia = Frecuencia.MENSUAL,
     val categorias: List<Categoria> = emptyList(),
     val guardando: Boolean = false,
     val guardado: Boolean = false,
@@ -71,6 +74,8 @@ class AddMovimientoViewModel(
     fun setCategoria(id: Long) = _ui.update { it.copy(categoriaId = id) }
     fun setFecha(fecha: LocalDate) = _ui.update { it.copy(fecha = fecha) }
     fun setDescripcion(texto: String) = _ui.update { it.copy(descripcion = texto) }
+    fun setRepetir(repetir: Boolean) = _ui.update { it.copy(repetir = repetir) }
+    fun setFrecuencia(frecuencia: Frecuencia) = _ui.update { it.copy(frecuencia = frecuencia) }
 
     fun guardar() {
         val estado = _ui.value
@@ -88,8 +93,15 @@ class AddMovimientoViewModel(
                     fecha = estado.fecha,
                     descripcion = estado.descripcion.trim()
                 )
-                if (estado.esEdicion) repository.actualizarMovimiento(mov)
-                else repository.insertarMovimiento(mov)
+                when {
+                    estado.esEdicion -> repository.actualizarMovimiento(mov)
+                    estado.repetir -> {
+                        repository.crearMovimientoRecurrente(mov, estado.frecuencia)
+                        // Si la fecha de inicio es antigua, crea ya las repeticiones que faltan
+                        repository.generarRecurrentesPendientes()
+                    }
+                    else -> repository.insertarMovimiento(mov)
+                }
 
                 _ui.update { it.copy(guardando = false, guardado = true) }
             } catch (e: Exception) {

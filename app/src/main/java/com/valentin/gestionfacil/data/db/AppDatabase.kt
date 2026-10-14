@@ -13,11 +13,13 @@ import com.valentin.gestionfacil.data.db.dao.CategoriaDao
 import com.valentin.gestionfacil.data.db.dao.MetaDao
 import com.valentin.gestionfacil.data.db.dao.MovimientoDao
 import com.valentin.gestionfacil.data.db.dao.PresupuestoDao
+import com.valentin.gestionfacil.data.db.dao.RecurrenteDao
 import com.valentin.gestionfacil.data.entity.Categoria
 import com.valentin.gestionfacil.data.entity.Meta
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.MovimientoMeta
 import com.valentin.gestionfacil.data.entity.Presupuesto
+import com.valentin.gestionfacil.data.entity.Recurrente
 
 @Database(
     entities = [
@@ -25,9 +27,10 @@ import com.valentin.gestionfacil.data.entity.Presupuesto
         Categoria::class,
         Presupuesto::class,
         Meta::class,
-        MovimientoMeta::class
+        MovimientoMeta::class,
+        Recurrente::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,8 +40,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoriaDao(): CategoriaDao
     abstract fun presupuestoDao(): PresupuestoDao
     abstract fun metaDao(): MetaDao
+    abstract fun recurrenteDao(): RecurrenteDao
 
-    /** Solo para la copia de seguridad. No cambia el esquema: no necesita migración. */
+    /** Solo para la copia de seguridad. */
     abstract fun backupDao(): BackupDao
 
     companion object {
@@ -84,6 +88,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migración v2 -> v3:
+         * Crea la tabla de movimientos recurrentes SIN tocar los datos existentes.
+         * Las columnas deben coincidir exactamente con la entidad Recurrente.
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS recurrentes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        importe REAL NOT NULL,
+                        tipo TEXT NOT NULL,
+                        categoriaId INTEGER NOT NULL,
+                        descripcion TEXT NOT NULL,
+                        frecuencia TEXT NOT NULL,
+                        fechaInicio TEXT NOT NULL,
+                        ultimaFecha TEXT NOT NULL,
+                        activo INTEGER NOT NULL,
+                        FOREIGN KEY(categoriaId) REFERENCES categorias(id) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_recurrentes_categoriaId ON recurrentes(categoriaId)")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -92,7 +122,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "gestionfacil.db"
                 )
                     .addCallback(SeedCallback())
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

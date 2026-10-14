@@ -18,7 +18,8 @@ class AppContainer(context: Context) {
         categoriaDao = database.categoriaDao(),
         movimientoDao = database.movimientoDao(),
         presupuestoDao = database.presupuestoDao(),
-        metaDao = database.metaDao()
+        metaDao = database.metaDao(),
+        recurrenteDao = database.recurrenteDao()
     )
 
     val preferencias: PreferenciasHelper = PreferenciasHelper(context)

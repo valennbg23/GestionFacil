@@ -5,10 +5,12 @@ import android.net.Uri
 import com.valentin.gestionfacil.data.db.dao.BackupDao
 import com.valentin.gestionfacil.data.db.dao.ContenidoBd
 import com.valentin.gestionfacil.data.entity.Categoria
+import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.Meta
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.MovimientoMeta
 import com.valentin.gestionfacil.data.entity.Presupuesto
+import com.valentin.gestionfacil.data.entity.Recurrente
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.data.entity.TipoMovimientoMeta
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +89,7 @@ class BackupManager(
         .put("presupuestos", JSONArray(c.presupuestos.map { it.aJson() }))
         .put("metas", JSONArray(c.metas.map { it.aJson() }))
         .put("movimientosMeta", JSONArray(c.movimientosMeta.map { it.aJson() }))
+        .put("recurrentes", JSONArray(c.recurrentes.map { it.aJson() }))
 
     // ── Lectura y validación ───────────────────────────────────────────
 
@@ -117,7 +120,10 @@ class BackupManager(
                 movimientos = raiz.getJSONArray("movimientos").mapObjetos { it.aMovimiento() },
                 presupuestos = raiz.getJSONArray("presupuestos").mapObjetos { it.aPresupuesto() },
                 metas = raiz.getJSONArray("metas").mapObjetos { it.aMeta() },
-                movimientosMeta = raiz.getJSONArray("movimientosMeta").mapObjetos { it.aMovimientoMeta() }
+                movimientosMeta = raiz.getJSONArray("movimientosMeta").mapObjetos { it.aMovimientoMeta() },
+                // Las copias del formato 1 (antes de los recurrentes) no tienen esta lista
+                recurrentes = raiz.optJSONArray("recurrentes")?.mapObjetos { it.aRecurrente() }
+                    ?: emptyList()
             )
         } catch (e: Exception) {
             throw BackupException("El archivo de copia está dañado o incompleto", e)
@@ -139,6 +145,7 @@ class BackupManager(
         val incoherente =
             c.movimientos.any { it.categoriaId !in idsCategorias } ||
                     c.presupuestos.any { it.categoriaId !in idsCategorias } ||
+                    c.recurrentes.any { it.categoriaId !in idsCategorias } ||
                     c.movimientosMeta.any { it.metaId !in idsMetas }
 
         if (incoherente) {
@@ -158,8 +165,11 @@ class BackupManager(
         const val NOMBRE_APP = "GestionFacil"
         const val CLAVE_FORMATO = "formato"
 
-        /** Súbelo si algún día cambia la estructura del archivo. */
-        const val VERSION_FORMATO = 1
+        /**
+         * Súbelo si algún día cambia la estructura del archivo.
+         * 1 = versión inicial · 2 = añade los movimientos recurrentes.
+         */
+        const val VERSION_FORMATO = 2
     }
 }
 
@@ -256,4 +266,28 @@ private fun JSONObject.aMovimientoMeta() = MovimientoMeta(
     tipo = TipoMovimientoMeta.valueOf(getString("tipo")),
     fecha = LocalDate.parse(getString("fecha")),
     nota = optString("nota", "")
+)
+
+// Movimiento recurrente
+private fun Recurrente.aJson(): JSONObject = JSONObject()
+    .put("id", id)
+    .put("importe", importe)
+    .put("tipo", tipo.name)
+    .put("categoriaId", categoriaId)
+    .put("descripcion", descripcion)
+    .put("frecuencia", frecuencia.name)
+    .put("fechaInicio", fechaInicio.toString())
+    .put("ultimaFecha", ultimaFecha.toString())
+    .put("activo", activo)
+
+private fun JSONObject.aRecurrente() = Recurrente(
+    id = getLong("id"),
+    importe = getDouble("importe"),
+    tipo = TipoMovimiento.valueOf(getString("tipo")),
+    categoriaId = getLong("categoriaId"),
+    descripcion = optString("descripcion", ""),
+    frecuencia = Frecuencia.valueOf(getString("frecuencia")),
+    fechaInicio = LocalDate.parse(getString("fechaInicio")),
+    ultimaFecha = LocalDate.parse(getString("ultimaFecha")),
+    activo = getBoolean("activo")
 )

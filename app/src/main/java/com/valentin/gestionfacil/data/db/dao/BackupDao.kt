@@ -9,6 +9,7 @@ import com.valentin.gestionfacil.data.entity.Meta
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.MovimientoMeta
 import com.valentin.gestionfacil.data.entity.Presupuesto
+import com.valentin.gestionfacil.data.entity.Recurrente
 
 /**
  * Todo el contenido de la base de datos de una vez.
@@ -19,7 +20,8 @@ data class ContenidoBd(
     val movimientos: List<Movimiento>,
     val presupuestos: List<Presupuesto>,
     val metas: List<Meta>,
-    val movimientosMeta: List<MovimientoMeta>
+    val movimientosMeta: List<MovimientoMeta>,
+    val recurrentes: List<Recurrente>
 )
 
 /**
@@ -49,6 +51,9 @@ abstract class BackupDao {
     @Query("SELECT * FROM movimientos_meta ORDER BY id")
     abstract suspend fun obtenerMovimientosMeta(): List<MovimientoMeta>
 
+    @Query("SELECT * FROM recurrentes ORDER BY id")
+    abstract suspend fun obtenerRecurrentes(): List<Recurrente>
+
     // ── Borrado (de hijas a padres, por las claves foráneas) ──────────
 
     @Query("DELETE FROM movimientos_meta")
@@ -59,6 +64,9 @@ abstract class BackupDao {
 
     @Query("DELETE FROM presupuestos")
     abstract suspend fun borrarPresupuestos()
+
+    @Query("DELETE FROM recurrentes")
+    abstract suspend fun borrarRecurrentes()
 
     @Query("DELETE FROM movimientos")
     abstract suspend fun borrarMovimientos()
@@ -83,6 +91,9 @@ abstract class BackupDao {
     @Insert
     abstract suspend fun insertarMovimientosMeta(lista: List<MovimientoMeta>)
 
+    @Insert
+    abstract suspend fun insertarRecurrentes(lista: List<Recurrente>)
+
     // ── Operaciones completas ──────────────────────────────────────────
 
     /** Lee todas las tablas en una única transacción. */
@@ -92,7 +103,8 @@ abstract class BackupDao {
         movimientos = obtenerMovimientos(),
         presupuestos = obtenerPresupuestos(),
         metas = obtenerMetas(),
-        movimientosMeta = obtenerMovimientosMeta()
+        movimientosMeta = obtenerMovimientosMeta(),
+        recurrentes = obtenerRecurrentes()
     )
 
     /**
@@ -104,6 +116,7 @@ abstract class BackupDao {
         borrarMovimientosMeta()
         borrarMetas()
         borrarPresupuestos()
+        borrarRecurrentes()
         borrarMovimientos()
         borrarCategorias()
 
@@ -112,5 +125,6 @@ abstract class BackupDao {
         insertarPresupuestos(contenido.presupuestos)
         insertarMetas(contenido.metas)
         insertarMovimientosMeta(contenido.movimientosMeta)
+        insertarRecurrentes(contenido.recurrentes)
     }
 }

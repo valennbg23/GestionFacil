@@ -1,6 +1,7 @@
 package com.valentin.gestionfacil
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,7 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -46,9 +50,12 @@ import com.valentin.gestionfacil.ui.historial.HistorialScreen
 import com.valentin.gestionfacil.ui.metas.MetasScreen
 import com.valentin.gestionfacil.ui.onboarding.OnboardingScreen
 import com.valentin.gestionfacil.ui.presupuestos.PresupuestosScreen
+import com.valentin.gestionfacil.ui.recurrentes.RecurrentesScreen
 import com.valentin.gestionfacil.ui.splash.SplashScreen
 import com.valentin.gestionfacil.ui.theme.GestionFacilTheme
 import com.valentin.gestionfacil.utils.BiometricHelper
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 sealed class TabDestino(
     val ruta: String,
@@ -71,11 +78,28 @@ object Rutas {
     const val SPLASH = "splash"
     const val ONBOARDING = "onboarding"
     const val BLOQUEO = "bloqueo"
+    const val RECURRENTES = "recurrentes"
 }
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Cada vez que la app pasa a primer plano, crea los movimientos
+        // recurrentes cuya fecha ya ha llegado (alquiler, nómina...).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                try {
+                    val repo = (application as GestionFacilApp).container.repository
+                    repo.generarRecurrentesPendientes()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("GestionFacil", "Error generando recurrentes", e)
+                }
+            }
+        }
+
         setContent {
             val temaViewModel: TemaViewModel = viewModel(factory = AppViewModelProvider.Factory)
             val modo by temaViewModel.modo.collectAsStateWithLifecycle()
@@ -188,7 +212,14 @@ fun AppNavigation() {
                 MetasScreen()
             }
             composable(TabDestino.Ajustes.ruta) {
-                AjustesScreen()
+                AjustesScreen(
+                    onAbrirRecurrentes = { navController.navigate(Rutas.RECURRENTES) }
+                )
+            }
+            composable(Rutas.RECURRENTES) {
+                RecurrentesScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             composable(
                 route = "add_movimiento?id={id}",

@@ -6,15 +6,23 @@ import com.valentin.gestionfacil.data.db.dao.MovimientoConCategoria
 import com.valentin.gestionfacil.data.db.dao.MovimientoDao
 import com.valentin.gestionfacil.data.db.dao.PresupuestoConCategoria
 import com.valentin.gestionfacil.data.db.dao.PresupuestoDao
+import com.valentin.gestionfacil.data.db.dao.RecurrenteConCategoria
+import com.valentin.gestionfacil.data.db.dao.RecurrenteDao
 import com.valentin.gestionfacil.data.db.dao.TotalPorCategoria
 import com.valentin.gestionfacil.data.db.dao.TotalPorMes
 import com.valentin.gestionfacil.data.entity.Categoria
+import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.Meta
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.MovimientoMeta
 import com.valentin.gestionfacil.data.entity.Presupuesto
+import com.valentin.gestionfacil.data.entity.Recurrente
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
+import com.valentin.gestionfacil.utils.CalendarioRecurrente
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import java.time.LocalDate
 
 /**
  * Fuente única de verdad para la capa de datos.
@@ -23,8 +31,12 @@ class FinanzasRepository(
     private val categoriaDao: CategoriaDao,
     private val movimientoDao: MovimientoDao,
     private val presupuestoDao: PresupuestoDao,
-    private val metaDao: MetaDao
+    private val metaDao: MetaDao,
+    private val recurrenteDao: RecurrenteDao
 ) {
+
+    /** Evita que dos generaciones de recurrentes a la vez dupliquen movimientos. */
+    private val mutexRecurrentes = Mutex()
 
     // ── Categorías ─────────────────────────────────────────────────────
 
@@ -87,4 +99,87 @@ class FinanzasRepository(
 
     suspend fun eliminarMovimientoMeta(mov: MovimientoMeta) =
         metaDao.eliminarMovimiento(mov)
+
+    // ── Movimientos recurrentes ────────────────────────────────────────
+
+    fun observarRecurrentes(): Flow<List<RecurrenteConCategoria>> = recurrenteDao.observarTodos()
+
+    /**
+     * Guarda [movimiento] como primer movimiento y crea la regla para que se
+     * repita solo con la [frecuencia] elegida.
+     */
+    suspend fun crearMovimientoRecurrente(movimiento: Movimiento, frecuencia: Frecuencia) {
+        val recurrente = Recurrente(
+            importe = movimiento.importe,
+            tipo = movimiento.tipo,
+            categoriaId = movimiento.categoriaId,
+            descripcion = movimiento.descripcion,
+            frecuencia = frecuencia,
+            fechaInicio = movimiento.fecha,
+            ultimaFecha = movimiento.fecha
+        )
+        recurrenteDao.crearConPrimerMovimiento(movimiento, recurrente)
+    }
+
+    /**
+     * Pausa o reanuda un recurrente.
+     * Al reanudarlo NO se crean los movimientos de las fechas que pasaron
+     * mientras estaba en pausa: se continúa desde la próxima fecha.
+     */
+    suspend fun cambiarActivoRecurrente(
+        recurrente: Recurrente,
+        activo: Boolean,
+        hoy: LocalDate = LocalDate.now()
+    ) {
+        val ultimaFecha = if (activo) {
+            CalendarioRecurrente.fechasPendientes(
+                inicio = recurrente.fechaInicio,
+                frecuencia = recurrente.frecuencia,
+                despuesDe = recurrente.ultimaFecha,
+                hasta = hoy
+            ).lastOrNull() ?: recurrente.ultimaFecha
+        } else {
+            recurrente.ultimaFecha
+        }
+        recurrenteDao.actualizar(recurrente.copy(activo = activo, ultimaFecha = ultimaFecha))
+    }
+
+    /** Borra la regla de repetición. Los movimientos ya creados se quedan. */
+    suspend fun eliminarRecurrente(recurrente: Recurrente) = recurrenteDao.eliminar(recurrente)
+
+    /**
+     * Crea los movimientos de los recurrentes activos cuya fecha ya ha llegado.
+     * Se llama al abrir la app y al crear un recurrente nuevo.
+     *
+     * @return cuántos movimientos se han creado
+     */
+    suspend fun generarRecurrentesPendientes(hoy: LocalDate = LocalDate.now()): Int =
+        mutexRecurrentes.withLock {
+            var creados = 0
+            recurrenteDao.obtenerActivos().forEach { rec ->
+                val fechas = CalendarioRecurrente.fechasPendientes(
+                    inicio = rec.fechaInicio,
+                    frecuencia = rec.frecuencia,
+                    despuesDe = rec.ultimaFecha,
+                    hasta = hoy
+                )
+                if (fechas.isNotEmpty()) {
+                    val movimientos = fechas.map { fecha ->
+                        Movimiento(
+                            importe = rec.importe,
+                            tipo = rec.tipo,
+                            categoriaId = rec.categoriaId,
+                            fecha = fecha,
+                            descripcion = rec.descripcion
+                        )
+                    }
+                    recurrenteDao.registrarGeneracion(
+                        recurrenteActualizado = rec.copy(ultimaFecha = fechas.last()),
+                        movimientos = movimientos
+                    )
+                    creados += movimientos.size
+                }
+            }
+            creados
+        }
 }
