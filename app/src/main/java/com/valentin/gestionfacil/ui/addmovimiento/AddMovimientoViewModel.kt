@@ -7,6 +7,7 @@ import com.valentin.gestionfacil.data.entity.Frecuencia
 import com.valentin.gestionfacil.data.entity.Movimiento
 import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.data.repository.FinanzasRepository
+import com.valentin.gestionfacil.utils.AvisosPresupuesto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +34,8 @@ data class AddMovimientoUiState(
 }
 
 class AddMovimientoViewModel(
-    private val repository: FinanzasRepository
+    private val repository: FinanzasRepository,
+    private val avisos: AvisosPresupuesto
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(AddMovimientoUiState())
@@ -101,6 +103,16 @@ class AddMovimientoViewModel(
                         repository.generarRecurrentesPendientes()
                     }
                     else -> repository.insertarMovimiento(mov)
+                }
+
+                // Si es un gasto, mira si con él se llega al 80% o al 100% de algún presupuesto.
+                // Va en su propio try: un fallo del aviso no debe impedir guardar el movimiento.
+                if (estado.tipo == TipoMovimiento.GASTO) {
+                    try {
+                        avisos.comprobarMesActual()
+                    } catch (e: Exception) {
+                        // Sin aviso, pero el movimiento ya está guardado
+                    }
                 }
 
                 _ui.update { it.copy(guardando = false, guardado = true) }

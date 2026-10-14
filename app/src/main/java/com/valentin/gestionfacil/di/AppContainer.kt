@@ -4,6 +4,7 @@ import android.content.Context
 import com.valentin.gestionfacil.data.backup.BackupManager
 import com.valentin.gestionfacil.data.db.AppDatabase
 import com.valentin.gestionfacil.data.repository.FinanzasRepository
+import com.valentin.gestionfacil.utils.AvisosPresupuesto
 import com.valentin.gestionfacil.utils.PreferenciasHelper
 
 /**
@@ -27,5 +28,11 @@ class AppContainer(context: Context) {
     val backupManager: BackupManager = BackupManager(
         backupDao = database.backupDao(),
         contentResolver = context.applicationContext.contentResolver
+    )
+
+    val avisosPresupuesto: AvisosPresupuesto = AvisosPresupuesto(
+        context = context.applicationContext,
+        repository = repository,
+        preferencias = preferencias
     )
 }

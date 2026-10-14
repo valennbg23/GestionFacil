@@ -85,17 +85,19 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Cada vez que la app pasa a primer plano, crea los movimientos
-        // recurrentes cuya fecha ya ha llegado (alquiler, nómina...).
+        // Cada vez que la app pasa a primer plano:
+        // 1. crea los movimientos recurrentes cuya fecha ya ha llegado (alquiler, nómina...)
+        // 2. avisa si algún presupuesto del mes ha llegado al 80% o al 100%
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 try {
-                    val repo = (application as GestionFacilApp).container.repository
-                    repo.generarRecurrentesPendientes()
+                    val container = (application as GestionFacilApp).container
+                    container.repository.generarRecurrentesPendientes()
+                    container.avisosPresupuesto.comprobarMesActual()
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.e("GestionFacil", "Error generando recurrentes", e)
+                    Log.e("GestionFacil", "Error al revisar recurrentes y avisos", e)
                 }
             }
         }

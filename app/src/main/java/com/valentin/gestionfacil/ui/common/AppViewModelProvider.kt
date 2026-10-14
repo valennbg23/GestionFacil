@@ -14,13 +14,14 @@ import com.valentin.gestionfacil.ui.historial.HistorialViewModel
 import com.valentin.gestionfacil.ui.metas.MetasViewModel
 import com.valentin.gestionfacil.ui.presupuestos.PresupuestosViewModel
 import com.valentin.gestionfacil.ui.recurrentes.RecurrentesViewModel
+import com.valentin.gestionfacil.utils.AvisosPresupuesto
 import com.valentin.gestionfacil.utils.PreferenciasHelper
 
 object AppViewModelProvider {
 
     val Factory: ViewModelProvider.Factory = viewModelFactory {
         initializer { DashboardViewModel(repo()) }
-        initializer { AddMovimientoViewModel(repo()) }
+        initializer { AddMovimientoViewModel(repo(), avisos()) }
         initializer { HistorialViewModel(repo()) }
         initializer { PresupuestosViewModel(repo()) }
         initializer { AjustesViewModel(repo(), backup()) }
@@ -41,3 +42,7 @@ private fun CreationExtras.prefs(): PreferenciasHelper =
 private fun CreationExtras.backup(): BackupManager =
     (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as GestionFacilApp)
         .container.backupManager
+
+private fun CreationExtras.avisos(): AvisosPresupuesto =
+    (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as GestionFacilApp)
+        .container.avisosPresupuesto

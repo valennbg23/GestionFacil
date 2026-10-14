@@ -11,9 +11,13 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,12 +35,16 @@ import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.ui.common.AppViewModelProvider
 import com.valentin.gestionfacil.ui.common.ModoTema
 import com.valentin.gestionfacil.ui.common.TemaViewModel
+import com.valentin.gestionfacil.ui.theme.AlertaMedia
+import com.valentin.gestionfacil.ui.theme.AlertaOk
 import com.valentin.gestionfacil.ui.theme.ColorGasto
 import com.valentin.gestionfacil.ui.theme.ColorIngreso
 import com.valentin.gestionfacil.ui.theme.Pantalla
 import com.valentin.gestionfacil.ui.theme.coloresDe
+import com.valentin.gestionfacil.utils.Consejo
 import com.valentin.gestionfacil.utils.EstadisticasRacha
 import com.valentin.gestionfacil.utils.IconHelper
+import com.valentin.gestionfacil.utils.TipoConsejo
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -109,6 +117,10 @@ fun DashboardScreen(
 
             item { BalanceCard(state.ingresos, state.gastos, state.saldo, colores.contenedor, colores.onContenedor) }
 
+            if (state.esMesActual && state.consejos.isNotEmpty()) {
+                item { TarjetaConsejos(state.consejos, colores.primario) }
+            }
+
             if (state.esMesActual) {
                 item { TarjetaRacha(state.racha) }
             }
@@ -163,6 +175,74 @@ fun DashboardScreen(
             }
 
             item { Spacer(Modifier.height(80.dp)) }
+        }
+    }
+}
+
+/** Tarjeta del asistente: hasta 3 consejos calculados con los datos del usuario. */
+@Composable
+private fun TarjetaConsejos(consejos: List<Consejo>, colorPrimario: Color) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Lightbulb,
+                    null,
+                    tint = colorPrimario,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Consejos para ti",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorPrimario
+                )
+            }
+
+            consejos.forEachIndexed { indice, consejo ->
+                if (indice > 0) {
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                }
+                FilaConsejo(consejo, colorPrimario)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilaConsejo(consejo: Consejo, colorPrimario: Color) {
+    val (icono, color) = when (consejo.tipo) {
+        TipoConsejo.AVISO -> Icons.Default.Warning to AlertaMedia
+        TipoConsejo.POSITIVO -> Icons.Default.ThumbUp to AlertaOk
+        TipoConsejo.INFO -> Icons.Default.Info to colorPrimario
+    }
+
+    Row(
+        Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            Modifier.size(36.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icono, null, tint = color, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                consejo.titulo,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                consejo.texto,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

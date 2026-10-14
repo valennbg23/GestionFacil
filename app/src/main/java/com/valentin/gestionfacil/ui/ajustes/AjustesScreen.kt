@@ -1,6 +1,8 @@
 package com.valentin.gestionfacil.ui.ajustes
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -20,6 +22,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Repeat
@@ -72,9 +75,42 @@ fun AjustesScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val preferencias = (context.applicationContext as GestionFacilApp).container.preferencias
+    val container = (context.applicationContext as GestionFacilApp).container
+    val preferencias = container.preferencias
+    val avisos = container.avisosPresupuesto
 
     var bloqueoActivado by remember { mutableStateOf(preferencias.bloqueoActivado) }
+    var avisosActivados by remember {
+        mutableStateOf(preferencias.avisosPresupuesto && avisos.permisoConcedido())
+    }
+
+    // Activa los avisos y revisa ya los presupuestos del mes
+    fun activarAvisos() {
+        preferencias.avisosPresupuesto = true
+        avisosActivados = true
+        scope.launch {
+            runCatching { avisos.comprobarMesActual() }
+            snackbarHostState.showSnackbar(
+                "Avisos activados. Te avisaré al llegar al 80% de un presupuesto."
+            )
+        }
+    }
+
+    // Petición del permiso de notificaciones (Android 13 o superior)
+    val lanzadorPermisoNotificaciones = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        if (concedido) {
+            activarAvisos()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "Sin permiso no puedo avisarte. Puedes darlo en los ajustes del móvil."
+                )
+            }
+        }
+    }
+
     var mostrarDialogoNueva by remember { mutableStateOf(false) }
     var categoriaEditando by remember { mutableStateOf<Categoria?>(null) }
     var categoriaEliminar by remember { mutableStateOf<Categoria?>(null) }
@@ -172,6 +208,46 @@ fun AjustesScreen(
                             preferencias.bloqueoActivado = false
                             scope.launch {
                                 snackbarHostState.showSnackbar("Bloqueo desactivado")
+                            }
+                        }
+                    }
+                )
+            }
+
+            // ── AVISOS ────────────────────────────────────────────
+            item {
+                Text(
+                    "Avisos",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colores.primario,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item {
+                TarjetaAvisos(
+                    activado = avisosActivados,
+                    colorPrimario = colores.primario,
+                    onCambio = { nuevoValor ->
+                        if (nuevoValor) {
+                            when {
+                                avisos.permisoConcedido() -> activarAvisos()
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                                    lanzadorPermisoNotificaciones.launch(
+                                        Manifest.permission.POST_NOTIFICATIONS
+                                    )
+                                else -> scope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        "Las notificaciones de la app están desactivadas en los ajustes del móvil"
+                                    )
+                                }
+                            }
+                        } else {
+                            preferencias.avisosPresupuesto = false
+                            avisosActivados = false
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Avisos desactivados")
                             }
                         }
                     }
@@ -466,6 +542,44 @@ private fun TarjetaCopiaSeguridad(
                     Text("Restaurar")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TarjetaAvisos(
+    activado: Boolean,
+    colorPrimario: Color,
+    onCambio: (Boolean) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                Icons.Default.NotificationsActive,
+                null,
+                tint = colorPrimario,
+                modifier = Modifier.size(32.dp)
+            )
+            Column(Modifier.weight(1f)) {
+                Text("Avisos de presupuesto", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Te avisa al llegar al 80% y al pasarte del presupuesto de una categoría",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = activado,
+                onCheckedChange = onCambio,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = colorPrimario
+                )
+            )
         }
     }
 }
