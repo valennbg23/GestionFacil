@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="pdfs" path="pdfs/" />
+    <!-- Foto temporal del ticket que se hace con la cámara -->
+    <cache-path name="tickets" path="tickets/" />
 </paths>

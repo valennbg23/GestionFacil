@@ -90,6 +90,8 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.9")
     // Widget de la pantalla de inicio (Jetpack Glance)
     implementation("androidx.glance:glance-appwidget:1.1.1")
+    // Lectura de tickets con la cámara (ML Kit, funciona sin internet)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Test
     testImplementation(libs.junit)

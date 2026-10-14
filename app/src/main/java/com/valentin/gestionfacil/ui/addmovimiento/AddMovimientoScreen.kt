@@ -1,5 +1,12 @@
 package com.valentin.gestionfacil.ui.addmovimiento
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,16 +16,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.valentin.gestionfacil.data.entity.Categoria
@@ -27,6 +40,7 @@ import com.valentin.gestionfacil.data.entity.TipoMovimiento
 import com.valentin.gestionfacil.ui.common.AppViewModelProvider
 import com.valentin.gestionfacil.ui.theme.ColorGasto
 import com.valentin.gestionfacil.utils.IconHelper
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -53,6 +67,24 @@ fun AddMovimientoScreen(
 
     var mostrarDatePicker by remember { mutableStateOf(false) }
     var mostrarConfirmEliminar by remember { mutableStateOf(false) }
+
+    // ── Escanear ticket ──
+    val context = LocalContext.current
+    // Dónde guarda la cámara la foto (se guarda como texto para que no se pierda al girar la pantalla)
+    var uriFoto by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val lanzadorCamara = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { fotoHecha ->
+        val uri = uriFoto
+        if (fotoHecha && uri != null) viewModel.escanearTicket(context, Uri.parse(uri))
+    }
+
+    val lanzadorGaleria = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) viewModel.escanearTicket(context, uri)
+    }
 
     Scaffold(
         topBar = {
@@ -112,6 +144,33 @@ fun AddMovimientoScreen(
                         onClick = { viewModel.setTipo(TipoMovimiento.INGRESO) },
                         shape = SegmentedButtonDefaults.itemShape(1, 2)
                     ) { Text("Ingreso") }
+                }
+            }
+
+            // Escanear ticket (solo al crear un gasto nuevo)
+            if (!state.esEdicion && state.tipo == TipoMovimiento.GASTO) {
+                item {
+                    TarjetaEscanear(
+                        escaneando = state.escaneando,
+                        aviso = state.avisoTicket,
+                        avisoEsError = state.avisoTicketEsError,
+                        onHacerFoto = {
+                            try {
+                                val uri = crearUriFoto(context)
+                                uriFoto = uri.toString()
+                                lanzadorCamara.launch(uri)
+                            } catch (e: ActivityNotFoundException) {
+                                Toast.makeText(context, "No se ha encontrado la cámara", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "No se ha podido abrir la cámara", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onElegirDeGaleria = {
+                            lanzadorGaleria.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
                 }
             }
 
@@ -357,6 +416,83 @@ private fun TarjetaRepetir(
             }
         }
     }
+}
+
+@Composable
+private fun TarjetaEscanear(
+    escaneando: Boolean,
+    aviso: String?,
+    avisoEsError: Boolean,
+    onHacerFoto: () -> Unit,
+    onElegirDeGaleria: () -> Unit
+) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.Receipt,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Column(Modifier.weight(1f)) {
+                    Text("Escanear ticket", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Rellena el importe, la fecha y la tienda por ti",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            if (escaneando) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Leyendo el ticket...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = onHacerFoto, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Hacer foto")
+                    }
+                    OutlinedButton(onClick = onElegirDeGaleria, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.PhotoLibrary, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Galería")
+                    }
+                }
+
+                if (aviso != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        aviso,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (avisoEsError) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Archivo temporal donde la cámara guarda la foto del ticket (se sobrescribe cada vez). */
+private fun crearUriFoto(context: Context): Uri {
+    val carpeta = File(context.cacheDir, "tickets").apply { mkdirs() }
+    val archivo = File(carpeta, "ticket.jpg")
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", archivo)
 }
 
 /** Explica con palabras cuándo se repetirá, según la fecha elegida. */
