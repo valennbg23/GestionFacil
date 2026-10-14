@@ -1,5 +1,8 @@
 package com.valentin.gestionfacil.ui.ajustes
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
@@ -17,8 +21,10 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +47,7 @@ import com.valentin.gestionfacil.utils.BiometricHelper
 import com.valentin.gestionfacil.utils.IconHelper
 import com.valentin.gestionfacil.utils.PdfExporter
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 private val paletaColores = listOf(
     "#FF6B6B", "#4ECDC4", "#45B7D1", "#F7B801", "#A4C639",
@@ -68,6 +75,21 @@ fun AjustesScreen(
     var mostrarDialogoNueva by remember { mutableStateOf(false) }
     var categoriaEditando by remember { mutableStateOf<Categoria?>(null) }
     var categoriaEliminar by remember { mutableStateOf<Categoria?>(null) }
+
+    // Archivo elegido para restaurar, pendiente de que el usuario confirme
+    var uriRestaurar by rememberSaveable { mutableStateOf<Uri?>(null) }
+
+    // Selector del sistema para elegir dónde guardar la copia (Descargas, Drive...)
+    val lanzadorCrearCopia = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> if (uri != null) viewModel.exportarCopia(uri) }
+
+    // Selector del sistema para elegir la copia que se quiere restaurar.
+    // Se aceptan todos los tipos porque algunos gestores no marcan bien los .json;
+    // si el archivo no es una copia válida, la app lo detecta y avisa.
+    val lanzadorRestaurarCopia = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) uriRestaurar = uri }
 
     LaunchedEffect(uiState.mensaje, uiState.error) {
         uiState.mensaje?.let { snackbarHostState.showSnackbar(it) }
@@ -149,6 +171,30 @@ fun AjustesScreen(
                                 snackbarHostState.showSnackbar("Bloqueo desactivado")
                             }
                         }
+                    }
+                )
+            }
+
+            // ── COPIA DE SEGURIDAD ────────────────────────────────
+            item {
+                Text(
+                    "Copia de seguridad",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colores.primario,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            item {
+                TarjetaCopiaSeguridad(
+                    procesando = uiState.procesandoCopia,
+                    colorPrimario = colores.primario,
+                    onCrear = {
+                        lanzadorCrearCopia.launch("GestionFacil_copia_${LocalDate.now()}.json")
+                    },
+                    onRestaurar = {
+                        lanzadorRestaurarCopia.launch(arrayOf("*/*"))
                     }
                 )
             }
@@ -283,6 +329,99 @@ fun AjustesScreen(
                 TextButton(onClick = { categoriaEliminar = null }) { Text("Cancelar") }
             }
         )
+    }
+
+    uriRestaurar?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { uriRestaurar = null },
+            icon = { Icon(Icons.Default.Restore, null) },
+            title = { Text("Restaurar copia") },
+            text = {
+                Text(
+                    "Se borrarán todos los datos que tienes ahora en la app y se " +
+                            "sustituirán por los de la copia. Esta acción no se puede deshacer."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.restaurarCopia(uri)
+                    uriRestaurar = null
+                }) {
+                    Text("Restaurar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { uriRestaurar = null }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun TarjetaCopiaSeguridad(
+    procesando: Boolean,
+    colorPrimario: Color,
+    onCrear: () -> Unit,
+    onRestaurar: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Default.Backup,
+                    null,
+                    tint = colorPrimario,
+                    modifier = Modifier.size(32.dp)
+                )
+                Column(Modifier.weight(1f)) {
+                    Text("Tus datos en un archivo", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Guárdalo en Drive o en Descargas para recuperarlo si cambias de móvil o reinstalas la app",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            if (procesando) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = colorPrimario
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(
+                    onClick = onCrear,
+                    enabled = !procesando,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = colorPrimario.copy(alpha = 0.18f),
+                        contentColor = colorPrimario
+                    )
+                ) {
+                    Icon(Icons.Default.Backup, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Crear copia")
+                }
+                OutlinedButton(
+                    onClick = onRestaurar,
+                    enabled = !procesando,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colorPrimario)
+                ) {
+                    Icon(Icons.Default.Restore, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Restaurar")
+                }
+            }
+        }
     }
 }
 

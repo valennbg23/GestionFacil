@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.valentin.gestionfacil.GestionFacilApp
+import com.valentin.gestionfacil.data.backup.BackupManager
 import com.valentin.gestionfacil.data.repository.FinanzasRepository
 import com.valentin.gestionfacil.ui.addmovimiento.AddMovimientoViewModel
 import com.valentin.gestionfacil.ui.ajustes.AjustesViewModel
@@ -21,7 +22,7 @@ object AppViewModelProvider {
         initializer { AddMovimientoViewModel(repo()) }
         initializer { HistorialViewModel(repo()) }
         initializer { PresupuestosViewModel(repo()) }
-        initializer { AjustesViewModel(repo()) }
+        initializer { AjustesViewModel(repo(), backup()) }
         initializer { MetasViewModel(repo()) }
         initializer { TemaViewModel(prefs()) }
     }
@@ -34,3 +35,7 @@ private fun CreationExtras.repo(): FinanzasRepository =
 private fun CreationExtras.prefs(): PreferenciasHelper =
     (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as GestionFacilApp)
         .container.preferencias
+
+private fun CreationExtras.backup(): BackupManager =
+    (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as GestionFacilApp)
+        .container.backupManager

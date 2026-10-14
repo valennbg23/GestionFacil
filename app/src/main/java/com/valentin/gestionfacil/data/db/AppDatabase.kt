@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.valentin.gestionfacil.data.db.converter.Converters
+import com.valentin.gestionfacil.data.db.dao.BackupDao
 import com.valentin.gestionfacil.data.db.dao.CategoriaDao
 import com.valentin.gestionfacil.data.db.dao.MetaDao
 import com.valentin.gestionfacil.data.db.dao.MovimientoDao
@@ -36,6 +37,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoriaDao(): CategoriaDao
     abstract fun presupuestoDao(): PresupuestoDao
     abstract fun metaDao(): MetaDao
+
+    /** Solo para la copia de seguridad. No cambia el esquema: no necesita migración. */
+    abstract fun backupDao(): BackupDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

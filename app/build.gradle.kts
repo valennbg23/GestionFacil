@@ -85,6 +85,9 @@ dependencies {
     implementation(libs.mpandroidchart)
     // Biometría
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
+    // Fragment actualizado: la biometría trae una versión antigua que hace
+    // cerrarse la app al abrir el selector de archivos (copia de seguridad)
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
 
     // Test
     testImplementation(libs.junit)

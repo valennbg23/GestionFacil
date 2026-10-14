@@ -1,6 +1,7 @@
 package com.valentin.gestionfacil.di
 
 import android.content.Context
+import com.valentin.gestionfacil.data.backup.BackupManager
 import com.valentin.gestionfacil.data.db.AppDatabase
 import com.valentin.gestionfacil.data.repository.FinanzasRepository
 import com.valentin.gestionfacil.utils.PreferenciasHelper
@@ -21,4 +22,9 @@ class AppContainer(context: Context) {
     )
 
     val preferencias: PreferenciasHelper = PreferenciasHelper(context)
+
+    val backupManager: BackupManager = BackupManager(
+        backupDao = database.backupDao(),
+        contentResolver = context.applicationContext.contentResolver
+    )
 }
