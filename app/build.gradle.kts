@@ -88,6 +88,8 @@ dependencies {
     // Fragment actualizado: la biometría trae una versión antigua que hace
     // cerrarse la app al abrir el selector de archivos (copia de seguridad)
     implementation("androidx.fragment:fragment-ktx:1.8.9")
+    // Widget de la pantalla de inicio (Jetpack Glance)
+    implementation("androidx.glance:glance-appwidget:1.1.1")
 
     // Test
     testImplementation(libs.junit)

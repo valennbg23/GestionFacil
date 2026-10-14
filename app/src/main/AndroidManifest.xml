@@ -15,9 +15,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.GestionFacil">
+        <!-- singleTop: si la app ya está abierta, el botón del widget reutiliza la pantalla -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="@string/app_name"
             android:theme="@style/Theme.GestionFacil">
             <intent-filter>
@@ -26,6 +28,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Widget "Saldo del mes" para la pantalla de inicio -->
+        <receiver
+            android:name=".widget.SaldoWidgetReceiver"
+            android:exported="true"
+            android:label="Saldo del mes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_saldo_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

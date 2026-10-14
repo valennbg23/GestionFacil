@@ -1,5 +1,6 @@
 package com.valentin.gestionfacil
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
+import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -54,6 +56,7 @@ import com.valentin.gestionfacil.ui.recurrentes.RecurrentesScreen
 import com.valentin.gestionfacil.ui.splash.SplashScreen
 import com.valentin.gestionfacil.ui.theme.GestionFacilTheme
 import com.valentin.gestionfacil.utils.BiometricHelper
+import com.valentin.gestionfacil.widget.SaldoWidget
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -82,8 +85,17 @@ object Rutas {
 }
 
 class MainActivity : FragmentActivity() {
+
+    /** Pantalla a la que ir al abrir la app desde el widget (por ejemplo, "Añadir"). */
+    private val destinoPendiente = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Solo la primera vez: si se gira la pantalla no hay que volver a navegar
+        if (savedInstanceState == null) {
+            destinoPendiente.value = intent?.getStringExtra(EXTRA_DESTINO)
+        }
 
         // Cada vez que la app pasa a primer plano:
         // 1. crea los movimientos recurrentes cuya fecha ya ha llegado (alquiler, nómina...)
@@ -114,15 +126,50 @@ class MainActivity : FragmentActivity() {
 
             GestionFacilTheme(forzarOscuro = forzarOscuro) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    AppNavigation()
+                    AppNavigation(
+                        destinoPendiente = destinoPendiente.value,
+                        onDestinoConsumido = { destinoPendiente.value = null }
+                    )
                 }
             }
         }
     }
+
+    /**
+     * Al salir de la app se actualiza el widget, así enseña lo último que hayas
+     * apuntado (y oculta o muestra las cantidades si has cambiado el bloqueo).
+     */
+    override fun onStop() {
+        super.onStop()
+        lifecycleScope.launch {
+            try {
+                SaldoWidget().updateAll(applicationContext)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("GestionFacil", "Error al actualizar el widget", e)
+            }
+        }
+    }
+
+    /** Si la app ya estaba abierta y se pulsa el botón del widget, llega aquí. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        destinoPendiente.value = intent.getStringExtra(EXTRA_DESTINO)
+    }
+
+    companion object {
+        const val EXTRA_DESTINO = "destino"
+        const val DESTINO_ADD_MOVIMIENTO = "add_movimiento"
+    }
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    destinoPendiente: String? = null,
+    onDestinoConsumido: () -> Unit = {}
+) {
     val navController: NavHostController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -131,6 +178,23 @@ fun AppNavigation() {
     val preferencias = app.container.preferencias
 
     val esTabPrincipal = tabs.any { it.ruta == currentRoute }
+
+    // Viene del botón "+ Añadir" del widget: espera a pasar el splash
+    // (y la huella, si la hay) y abre la pantalla de añadir movimiento
+    LaunchedEffect(destinoPendiente, currentRoute) {
+        if (destinoPendiente != MainActivity.DESTINO_ADD_MOVIMIENTO) return@LaunchedEffect
+        val ruta = currentRoute ?: return@LaunchedEffect
+        when {
+            // Ya estabas añadiendo un movimiento: no se abre otra vez
+            ruta.startsWith("add_movimiento") -> onDestinoConsumido()
+            // Todavía en el splash, la presentación o la huella: se espera
+            ruta == Rutas.SPLASH || ruta == Rutas.ONBOARDING || ruta == Rutas.BLOQUEO -> Unit
+            else -> {
+                navController.navigate("add_movimiento")
+                onDestinoConsumido()
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
